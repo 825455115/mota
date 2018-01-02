@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ch">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <title></title>
+    <style type="text/css">
+        * {
+            padding: 0;
+            margin: 0;
+            border: none;
+        }
+
+        .mt-box {
+            width: 700px;
+            height: 372px;
+            margin: 0 auto;
+            background: url("./img/other/Bgd01-Wall01.png");
+        }
+
+        .mt-left {
+            width: 174px;
+            height: 100%;
+            float: left;
+        }
+
+        #board {
+            float: left;
+            margin-top: 10px;
+            box-shadow: 0 0 20px #333;
+        }
+
+        .mt-right {
+            width: 174px;
+            height: 100%;
+            float: left;
+        }
+
+        .mt-actor {
+            height: 180px;
+        }
+
+        .mt-key {
+            width: 100%;
+            height: 104px;
+            text-align: center;
+            display: block;
+            box-shadow: 0 0 20px #333;
+        }
+
+        .mt-shortcut {
+            width: 100%;
+            height: 88px;
+        }
+
+        .mt-weapon {
+            height: 100px;
+            width: 100%;
+            margin-top: 20px;
+            text-align: center;
+            box-shadow: 0 0 20px #333;
+        }
+
+    </style>
+</head>
+<body>
+<!--
+怪物, 墙  32px 32px
+章鱼 96px 93px
+魔龙 96px 96px
+商店 120px 30px
+-->
+<div class="mt-box">
+    <div class="mt-left">
+        <div class="mt-actor">
+            <canvas id="actor" style="padding-top: 10px;"></canvas>
+        </div>
+        <div class="mt-key">
+            <canvas id="key" style="padding-top: 3px;"></canvas>
+        </div>
+        <div class="mt-shortcut"></div>
+    </div>
+    <canvas id="board"></canvas>
+    <div class="mt-right">
+        <div class="mt-weapon">
+            <canvas id="weapon"></canvas>
+        </div>
+        <div class="mt-prop">
+            <canvas></canvas>
+        </div>
+    </div>
+</div>
+<button onclick="Mota.previous()">上一层</button>
+<button onclick="Mota.next()">下一层</button>
+</body>
+<script src="./js/map.js" charset="UTF-8"></script>
+<script src="./js/attr.js" charset="UTF-8"></script>
+<script src="js/mota.js" charset="UTF-8"></script>
+<script type="text/javascript">
+    window.onload = function () {
+        Mota.init();
+    }
+</script>
+</html>
