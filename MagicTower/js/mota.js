@@ -16,8 +16,8 @@ var Mota = (function () {
         this.helper = new Helper();
         this.maps = new Maps();
         this.store = new Store();
-        this.door = new Door();
         this.actor = new Actor();
+        this.door = new Door();
         this.msgDlg = new MsgDialog();
         this.callback = '';
         this.records = {
@@ -30,14 +30,18 @@ var Mota = (function () {
 
     Mota.prototype = {
         init: function (callback) {
-            this.callback = callback;
-            this.eventHandlers();
-            this.newGame();
+            if (callback instanceof Object) {
+                this.callback = callback;
+                this.eventHandlers();
+                this.newGame();
+            } else {
+                window.console.error("callback必须为Object类型");
+            }
         },
         clone: function (obj) {
             var o = obj instanceof Array ? [] : {};
             for (var k in obj) {
-                if (k !== 'mota') {
+                if (k !== 'mota' && k != 'images') {
                     o[k] = typeof obj[k] === 'object' ? this.clone(obj[k]) : obj[k];
                 }
             }
@@ -45,7 +49,7 @@ var Mota = (function () {
         },
         copyObj: function (obj, obj1) {
             for (var k in obj1) {
-                if (k !== 'mota') {
+                if (k !== 'mota' && k != 'images') {
                     obj1[k] = typeof obj1[k] === 'object' ? this.clone(obj[k], obj1[k]) : obj[k];
                 }
             }
@@ -54,7 +58,10 @@ var Mota = (function () {
             if (this.records["record" + loc] instanceof Object) {
                 var record = this.records["record" + loc];
                 record["maps"] = this.clone(this.maps);
-                record["actors"] = this.clone(this.actor);
+                record["actor"] = this.clone(this.actor);
+                record["monster"] = this.clone(this.monster);
+                record["helper"] = this.clone(this.helper);
+                record["store"] = this.clone(this.store);
             } else {
                 return "存档" + loc;
             }
@@ -64,7 +71,11 @@ var Mota = (function () {
             if (this.records["record" + loc] !== undefined && this.records["record" + loc]["maps"] !== undefined) {
                 var records = this.records["record" + loc];
                 this.copyObj(records["maps"], this.maps);
-                this.copyObj(records["actors"], this.actor);
+                this.copyObj(records["actor"], this.actor);
+                this.copyObj(records["monster"], this.monster);
+                this.copyObj(records["helper"], this.helper);
+                this.copyObj(records["store"], this.store);
+                this.actor.resetBorder();
                 this.maps.refresh([this.actor.fromX, this.actor.fromY]);
                 return true;
             } else {
@@ -206,7 +217,7 @@ var Mota = (function () {
             this.scenes = [];
             this.tier = 1;
             this.floorWallNum = 0;
-            this.actorStairsTierPos = [
+            this.actorStairsTierPos = [[[0, 1], [0, 1]],
                 [[1, 0], [5, 10]], [[0, 9], [0, 1]], [[9, 10], [1, 10]], [[0, 9], [10, 9]], [[0, 1], [1, 10]],
                 [[10, 9], [0, 1]], [[0, 1], [10, 9]], [[5, 1], [0, 1]], [[0, 9], [5, 1]], [[5, 1], [0, 9]],
                 [[5, 9], [10, 9]], [[1, 10], [9, 10]], [[9, 10], [1, 10]], [[5, 9], [10, 9]], [[5, 1], [5, 9]],
@@ -220,7 +231,7 @@ var Mota = (function () {
             ];
             this.maps[this.tier] = this.mota.clone(GLOBAL_MAPS["tier" + this.tier]);
             this.mota.render.drawBoard(this.maps[this.tier]);
-            var origin = this.actorStairsTierPos[this.tier - 1][1];
+            var origin = this.actorStairsTierPos[this.tier][1];
             this.refresh(origin)
         },
         floorWall: function () {
@@ -344,6 +355,17 @@ var Mota = (function () {
                 }
             }
         },
+        clearTierWall: function () {
+            var maps = this.maps[this.tier];
+            var wallID = Resource.adorn.wall.base.ID;
+            for (var y = 0, ylen = maps.length; y < ylen; y++) {
+                for (var x = 0, xlen = maps[y].length; x < xlen; x++) {
+                    if (maps[y][x] === wallID) {
+                        this.setFloor(x, y);
+                    }
+                }
+            }
+        },
         clearMagma: function () {
             if (this.tier === 13 || this.tier === 26) {
                 var maps = this.maps[this.tier];
@@ -382,6 +404,9 @@ var Mota = (function () {
             this.mota.render.drawWall(x, y, Resource.adorn.wall.base);
         },
         setFloor: function (x, y) {
+            if (this.maps[this.tier][y] === undefined) {
+                return;
+            }
             this.maps[this.tier][y][x] = 0;
             this.mota.render.drawFloor(x, y);
         },
@@ -399,34 +424,113 @@ var Mota = (function () {
                     break;
             }
         },
-        previous: function () {
+        crackSceneRule: function (x, y, monsterId) {
+            var maps = this.maps[this.tier];
+            switch (monsterId) {
+                case Resource.figure.monster.Orcish.category[1].ID:
+                case Resource.figure.monster.SLaiTe.category[0].ID:
+                case Resource.figure.monster.SLaiTe.category[1].ID:
+                case Resource.figure.monster.SLaiTe.category[2].ID:
+                case Resource.figure.monster.Ghost.category[3].ID:
+                case Resource.figure.monster.Bat.category[0].ID:
+                case Resource.figure.monster.SwordMan.category[0].ID:
+                case Resource.figure.monster.Knight.category[1].ID:
+                case Resource.figure.monster.Warrior.category[0].ID:
+                case Resource.figure.monster.Magician.category[3].ID:
+                    var floorID = Resource.adorn.floor.base.ID;
+                    switch (this.tier) {
+                        case 14:
+                            maps[y][x] = floorID;
+                            if (y >= 2 || x >= 3) {
+                                break;
+                            }
+                            if (maps[0][0] === floorID && maps[0][2] === floorID && maps[1][1] === floorID) {
+                                maps[2][0] = Resource.prop.key.red.ID;
+                                this.mota.render.drawKey(0, 2, Resource.prop.key.red);
+                            }
+                            break;
+                        case 30:
+                            maps[y][x] = floorID;
+                            if (maps[4][2] === floorID && maps[4][3] === floorID && maps[4][4] === floorID && maps[4][6] === floorID && maps[4][7] === floorID && maps[4][8] === floorID) {
+                                this.setFloor(5, 3);
+                            }
+                            break;
+                        case 34:
+                            maps[y][x] = floorID;
+                            if (y <= 2 || y >= 8) {
+                                break;
+                            }
+                            if (maps[3][4] === floorID && maps[3][6] === floorID && maps[3][8] === floorID && maps[3][10] === floorID && maps[7][4] === floorID && maps[7][6] === floorID && maps[7][8] === floorID && maps[7][10] === floorID) {
+                                var key = Resource.prop.key;
+                                maps[4][0] = key.yellow.ID;
+                                maps[4][2] = key.yellow.ID;
+                                maps[6][0] = key.yellow.ID;
+                                maps[6][2] = key.yellow.ID;
+                                maps[5][1] = key.red.ID;
+                                this.mota.render.drawKey(0, 4, key.yellow);
+                                this.mota.render.drawKey(2, 4, key.yellow);
+                                this.mota.render.drawKey(0, 6, key.yellow);
+                                this.mota.render.drawKey(2, 6, key.yellow);
+                                this.mota.render.drawKey(1, 5, key.red);
+                            }
+                            break;
+                        case 41:
+                            if (y === 1 && x === 1) {
+                                var flying = Resource.prop.tool_limit.flying.down;
+                                maps[1][9] = flying.ID;
+                                this.mota.render.drawToolLimit(9, 1, flying);
+                            }
+                            break;
+                        default :
+                            break;
+                    }
+                    break;
+            }
+        },
+        previous: function (fId) {
             if (this.tier > 1 && this.mota.monster.bossGuardNum === 0) {
                 this.mota.monster.bossGuardNum = 0;
-                if (this.tier === 45) {//44层  在异度空间 直接跳过
+                if (this.tier === 45 && fId !== Resource.prop.tool_limit.flying.down.ID) {//44层  在异度空间 直接跳过
                     this.tier--;
                 }
                 this.tier--;
-                var origin = this.actorStairsTierPos[this.tier - 1][0];
+                if (this.maps[this.tier] === undefined) {
+                    if (this.tier === 44) {
+                        this.maps[this.tier] = this.mota.clone(GLOBAL_MAPS["tier44"]);
+                    } else {
+                        this.tier = 24;
+                    }
+                }
+                var origin = this.actorStairsTierPos[this.tier][0];
                 this.refresh(origin);
+            } else {
+                if (fId === Resource.prop.tool_limit.flying.down.ID) {
+                    if (this.tier === 1) {
+                        this.tier--;
+                        this.maps[this.tier] = this.mota.clone(GLOBAL_MAPS["tier0"]);
+                        var origin = this.actorStairsTierPos[this.tier][0];
+                        this.refresh(origin);
+                    }
+                }
             }
         },
-        next: function (isFlying) {
+        next: function (isFlying, fId) {
             if (this.tier < 50 && this.mota.monster.bossGuardNum === 0) {
                 this.mota.monster.bossGuardNum = 0;
-                if (this.tier === 43) {//44层  在异度空间 直接跳过
+                if (this.tier === 43 && fId !== Resource.prop.tool_limit.flying.up.ID) {//44层  在异度空间 直接跳过
                     this.tier++;
                 }
+                this.tier++;
                 var origin = this.actorStairsTierPos[this.tier][1];
                 if (isFlying !== 1) {
-                    this.tier++;
                     if (this.maps[this.tier] === undefined) {
                         this.maps[this.tier] = GLOBAL_MAPS["tier" + this.tier];
                     }
                 } else {
-                    if (this.maps[this.tier + 1] === undefined) {
+                    if (this.maps[this.tier] === undefined) {
+                        this.tier--;
                         return;
                     }
-                    this.tier++;
                 }
                 this.refresh(origin);
             }
@@ -663,7 +767,7 @@ var Mota = (function () {
             } else {
                 switch (prop.ID) {
                     case Resource.prop.key.yellow.ID:
-                        if (num < this.mota.actor.keyYellowNum) {
+                        if (num <= this.mota.actor.keyYellowNum) {
                             this.mota.actor.keyYellowNum -= num;
                             this.mota.actor.gold += gold;
                             this.mota.render.drawActorText().gold();
@@ -672,7 +776,7 @@ var Mota = (function () {
                         }
                         break;
                     case Resource.prop.key.blue.ID:
-                        if (num < this.mota.actor.keyBlueNum) {
+                        if (num <= this.mota.actor.keyBlueNum) {
                             this.mota.actor.keyBlueNum -= num;
                             this.mota.actor.gold += gold;
                             this.mota.render.drawActorText().gold();
@@ -681,7 +785,7 @@ var Mota = (function () {
                         }
                         break;
                     case Resource.prop.key.red.ID:
-                        if (num < this.mota.actor.keyYellowNum) {
+                        if (num <= this.mota.actor.keyRedNum) {
                             this.mota.actor.keyRedNum -= num;
                             this.mota.actor.gold += gold;
                             this.mota.render.drawActorText().gold();
@@ -698,6 +802,24 @@ var Mota = (function () {
             this.mota.msgDlg.show(msg, 0);
             return false;
         },
+        rescuePrincess: function () {
+            if (this.mota.maps.maps[25][5][5] === Resource.figure.monster.Exorcist.category[0].ID) {
+                this.mota.msgDlg.show(Resource.figure.princess.message[0], 0);
+                return;
+            }
+            if (this.mota.maps.maps[50] === undefined) {
+                this.mota.maps.maps[50] = this.mota.clone(GLOBAL_MAPS["tier50"]);
+                var floor = Resource.adorn.floor;
+                var wall = Resource.adorn.wall;
+                var floorID = floor.wall.ID;
+                var wallID = wall.base.ID;
+                var ladderID = Resource.adorn.floor.ladder.ID;
+                var maps = this.mota.maps.maps[24];
+                maps[0][3] = wallID, maps[0][4] = wallID, maps[0][6] = wallID, maps[0][7] = wallID;
+                maps[0][5] = ladderID, maps[1][5] = floorID, maps[2][5] = floorID, maps[3][5] = floorID;
+            }
+            this.mota.msgDlg.show(Resource.figure.princess.message[1], 0);
+        },
         msgDlg: function () {
             var self = this;
             return {
@@ -705,8 +827,8 @@ var Mota = (function () {
                     var msg = '';
                     var type = 0;
                     var tier = self.mota.maps.tier;
-                    if (self.mota.actor.notepad["tier" + tier] === undefined) {
-                        self.mota.actor.notepad["tier" + tier] = {};
+                    if (self.mota.actor.notepads["tier" + tier] === undefined) {
+                        self.mota.actor.notepads["tier" + tier] = {};
                     }
                     switch (helperId) {
                         case Resource.figure.helper.elf.ID:
@@ -714,7 +836,7 @@ var Mota = (function () {
                             break;
                         case Resource.figure.helper.seer.ID:
                             var seer = Resource.notepad["tier" + tier].seer;
-                            self.mota.actor.notepad["tier" + tier]['seer'] = Resource.notepad["tier" + tier].seer;
+                            self.mota.actor.notepads["tier" + tier]["seer"] = seer;
                             self.helper = seer;
                             self.helper["ID"] = Resource.figure.helper.seer.ID;
                             msg = seer.message;
@@ -790,6 +912,26 @@ var Mota = (function () {
         open: function (type, actor, dX, dY) {
             if (this.minusKey(type, actor)) {
                 this.mota.maps.setFloor(dX, dY);
+                if (this.mota.maps.tier === 39) {
+                    var keyID = Resource.adorn.door.yellow.ID;
+                    var floorID = Resource.adorn.floor.base.ID;
+                    var maps = this.mota.maps.maps[this.mota.maps.tier];
+                    if (maps[1][1] === keyID && maps[1][3] === floorID && maps[1][5] === keyID && maps[3][1] === keyID && maps[3][3] === keyID && maps[3][5] === floorID && maps[5][1] === keyID && maps[5][3] === keyID && maps[5][5] === keyID) {
+                        maps[3][3] = Resource.prop.tool_limit.flying.center.ID;
+                        this.mota.render.drawToolLimit(3, 3, Resource.prop.tool_limit.flying.center);
+                    }
+                }
+            }
+        },
+        openTierYellowDoor: function () {
+            var doorID = Resource.adorn.door.yellow.ID;
+            var maps = this.mota.maps.maps[this.mota.maps.tier];
+            for (var y = 0, ylen = maps.length; y < ylen; y++) {
+                for (var x = 0, xlen = maps[y].length; x < xlen; x++) {
+                    if (maps[y][x] === doorID) {
+                        this.mota.maps.setFloor(x, y);
+                    }
+                }
             }
         },
         openFlower: function (monsterId, x, y) {
@@ -856,7 +998,10 @@ var Mota = (function () {
         this.keyRedNum = 0;  //红钥匙
         this.weapon = {}; //武器
         this.pause = 0;
-        this.notepad = {};//记事本
+        this.isSealDevil = 0; //封印假魔王 0 --- 没有 1 --- 有
+        this.isOpenNotepad = 0;
+        this.notepads = {};//记事本
+        this.npadPage = 0;
         this.prop = {};
     }
 
@@ -865,16 +1010,19 @@ var Mota = (function () {
             this.pause = 0;
             this.mota = mota;
             this.actor = Resource.figure.actor;
+            this.isSealDevil = 0;
             this.HP = this.actor.HP;
             this.ATK = this.actor.ATK;
             this.DEF = this.actor.DEF;
             this.gold = this.actor.gold;
-            this.level = 0; //等级
-            this.keyYellowNum = 10; //黄钥匙
-            this.keyBlueNum = 10;  //蓝钥匙
-            this.keyRedNum = 10;  //红钥匙
-            this.weapon = {sword: {}, shield: {}}; //武器
-            this.notepad = {};//记事本
+            this.level = 0;
+            this.keyYellowNum = 0;
+            this.keyBlueNum = 0;
+            this.keyRedNum = 0;
+            this.isOpenNotepad = 0;
+            this.npadPage = 0;
+            this.weapon = {sword: {}, shield: {}};
+            this.notepads = {};
             this.prop = {
                 manual: {},
                 notepad: {},
@@ -894,32 +1042,73 @@ var Mota = (function () {
                 },
                 holyWater: {}
             };
-
+            this.resetBorder();
+            this.keys = 0; //人物移动关键帧
+            this.direction = Resource.figure.actor.direction.bottom;
+        },
+        resetBorder: function () {
             this.mota.render.drawActorBorder();
             this.mota.render.drawKeyBorder();
             this.mota.render.drawWeaponBorder();
             this.mota.render.drawPropBorder();
-            this.keys = 0; //人物移动关键帧
-            this.direction = Resource.figure.actor.direction.bottom;
         },
-        getAttackCount:function(monster){//攻击次数
+        getAttackCount: function (monster) {//攻击次数
             var HP = monster.HP;
             var DEF = monster.DEF;
-            var ATK = this.actor.ATK;
+            var ATK = this.mota.actor.ATK;
             var R = Resource.figure.monster;
-            if(this.prop.cross.ID !== undefined){
-                switch (monster.ID){
+            if (this.prop.cross.ID !== undefined) {
+                switch (monster.ID) {
                     case R.Orcish.category[0].ID:
                     case R.Orcish.category[1].ID:
                     case R.Bat.category[2].ID:
                         ATK *= 2;
-                    break;
+                        break;
                 }
             }
-            if(this.prop.dragonSlayer.ID !== undefined && monster.ID === R.BOSS.category[0].ID){
+            if (monster.ID === Resource.figure.monster.Devil.category[0].ID && this.mota.actor.isSealDevil === 1) {
+                DEF /= 10;
+                HP /= 10;
+            }
+            if (this.prop.dragonSlayer.ID !== undefined && monster.ID === R.BOSS.category[0].ID) {
                 ATK *= 2;
             }
             return Math.floor(HP / (ATK - DEF));
+        },
+        notepad: function () {
+            var self = this;
+            return {
+                readTier: function () {
+                    var message = self.notepads["tier" + self.npadPage];
+                    var manual = self.mota.render.manual;
+                    if (message === undefined || message.seer === undefined) {
+                        manual.clear(0, 0, manual.width, manual.height);
+                        manual.drawText(3.3, 5.3, "此楼层没有任何消息", 7, 18);
+                    } else {
+                        manual.drawLongText(message.seer.message, 3, 18, 4);
+                    }
+                    manual.drawText(5, 1.5, "第" + self.npadPage + "层", 7, 20);
+                    self.mota.render.manual.drawText(2.5, 10.5, "(4)<上一页> (5)<下一页> 按回车键继续游戏", 8, 16);
+                },
+                open: function () {
+                    if (self.isOpenNotepad === 0) {
+                        self.pause = 1;
+                        self.isOpenNotepad = 1;
+                        var tier = self.mota.maps.tier;
+                        self.npadPage = tier;
+                        this.readTier();
+                        self.mota.render.manual.board.style.display = "block";
+                    }
+                },
+                close: function () {
+                    if (self.isOpenNotepad === 1) {
+                        self.pause = 0;
+                        self.npadPage = 0;
+                        self.isOpenNotepad = 0;
+                        self.mota.render.manual.board.style.display = "none";
+                    }
+                }
+            }
         },
         /**
          * 加血
@@ -942,7 +1131,11 @@ var Mota = (function () {
             this.mota.render.drawActorText().HP();
         },
         minusHP: function (HP) {
-            this.HP -= HP;
+            if (this.HP < HP) {
+                this.HP = 0;
+            } else {
+                this.HP -= HP;
+            }
             this.mota.render.drawActorText().HP();
         },
         /**
@@ -1014,10 +1207,21 @@ var Mota = (function () {
             this.gold += glod;
             this.mota.render.drawActorText().gold();
         },
+
         move: function (toX, toY, direction) {
             var maps = this.mota.maps;
             var index = maps.maps[maps.tier][toY][toX];
             switch (index) {
+                case Resource.adorn.floor.ladder.ID:
+                    maps.tier = 49;
+                    maps.next();
+                    break;
+                case Resource.figure.princess.ID:
+                    this.mota.helper.rescuePrincess();
+                    break;
+                case Resource.figure.monster.MagicGuard.range.ID:
+                    this.mota.monster.magicAttack(toX, toY, 2);
+                    break;
                 case Resource.adorn.floor.trap.ID:
                     maps.triggerTrap(toX, toY);
                     break;
@@ -1174,7 +1378,9 @@ var Mota = (function () {
                 default:
                     break;
             }
-            if (maps.maps[maps.tier][toY][toX] === Resource.adorn.floor.base.ID) {
+            var ID = maps.maps[maps.tier][toY][toX];
+            if (ID === Resource.adorn.floor.base.ID || ID === Resource.figure.monster.MagicGuard.range.ID) {
+                this.mota.monster.magicAttack(toX, toY, 1);
                 if (this.direction === direction) {
                     this.key = this.key++ > 2 ? 0 : this.key;
                 } else {
@@ -1191,6 +1397,8 @@ var Mota = (function () {
                 this.mota.render.drawActor(this.fromX, this.fromY, this.key, direction);
             }
         }, keyPress: function (key) {
+            var limitProp = Resource.prop.tool_limit;
+            var alwaysProp = Resource.prop.tool_always;
             switch (key) {
                 case 'top':
                     if (this.fromY > 0) {
@@ -1212,27 +1420,123 @@ var Mota = (function () {
                         this.move(this.fromX - 1, this.fromY, this.actor.direction.left.posY);
                     }
                     break;
-                case 'floor-up':
-                    if (this.prop.flyingWand.ID !== undefined) {
-                        this.mota.maps.next();//(1);
+                case 'flying-up': //飞行魔杖
+                    if (this.prop.flyingWand.ID === alwaysProp.flyingWand.ID) {
+                        this.mota.maps.next(1);
                     }
                     break;
-                case 'floor-down':
-                    if (this.prop.flyingWand.ID !== undefined) {
+                case 'flying-down'://飞行魔杖
+                    if (this.prop.flyingWand.ID === alwaysProp.flyingWand.ID) {
                         this.mota.maps.previous();
                     }
                     break;
-                case 'H':
-                    if (this.mota.actor.prop.manual.ID !== undefined)
+                case 'H': // 怪物手册
+                    if (this.prop.manual.ID === alwaysProp.manual.ID)
                         this.mota.monster.manual().open();
                     break;
-                case 'G':
-                    if (this.mota.actor.prop.notepad.ID !== undefined) {
-
+                case 'G': //记事本
+                    if (this.prop.notepad.ID === alwaysProp.notepad.ID) {
+                        this.notepad().open();
                     }
                     break;
-                case 'F':
-                    if (this.mota.actor.prop.snowCrystal.ID !== undefined) {
+                case "Z": //镐
+                    if (this.prop.pickax.ID === limitProp.pickax.ID) {
+                        var actor = Resource.figure.actor;
+                        var wallID = Resource.adorn.wall.base.ID;
+                        var maps = this.mota.maps.maps[this.mota.maps.tier];
+                        switch (this.direction) {
+                            case actor.direction.left.posY:
+                                if (maps[this.fromY][this.fromX - 1] === wallID) {
+                                    this.mota.maps.setFloor(this.fromX - 1, this.fromY);
+                                }
+                                break;
+                            case actor.direction.right.posY:
+                                if (maps[this.fromY][this.fromX + 1] === wallID) {
+                                    this.mota.maps.setFloor(this.fromX + 1, this.fromY);
+                                }
+                                break;
+                            case actor.direction.bottom.posY:
+                                if (this.fromY + 1 <= 10 && maps[this.fromY + 1][this.fromX] === wallID) {
+                                    this.mota.maps.setFloor(this.fromX, this.fromY + 1);
+                                }
+                                break;
+                            case actor.direction.top.posY:
+                                if (this.fromY - 1 >= 0 && maps[this.fromY - 1][this.fromX] === wallID) {
+                                    this.mota.maps.setFloor(this.fromX, this.fromY - 1);
+                                }
+                                break;
+                            default :
+                                break;
+                        }
+                        this.mota.render.drawIdToProp(this.prop.pickax.ID, 1);
+                    }
+                    break;
+                case "X": //地震卷轴
+                    if (this.prop.superMaigcMattok.ID === limitProp.superMaigcMattok.ID) {
+                        this.mota.maps.clearTierWall();
+                        this.mota.render.drawIdToProp(this.prop.superMaigcMattok.ID, 1);
+                    }
+                    break;
+                case "C": //炸弹
+                    if (this.prop.bomb.ID === limitProp.bomb.ID) {
+                        var maps = this.mota.maps;
+                        maps.setFloor(this.fromX - 1, this.fromY + 1);
+                        maps.setFloor(this.fromX, this.fromY + 1);
+                        maps.setFloor(this.fromX + 1, this.fromY + 1);
+                        maps.setFloor(this.fromX - 1, this.fromY);
+                        maps.setFloor(this.fromX + 1, this.fromY);
+                        maps.setFloor(this.fromX - 1, this.fromY - 1);
+                        maps.setFloor(this.fromX, this.fromY - 1);
+                        maps.setFloor(this.fromX + 1, this.fromY - 1);
+                        maps.refresh([this.fromX, this.fromY]);
+                        this.mota.render.drawIdToProp(this.prop.bomb.ID, 1);
+                    }
+                    break;
+                case "V": //圣水
+                    if (this.prop.holyWater.ID === limitProp.holyWater.ID) {
+                        this.minusHP(-(this.ATK * 10 + this.DEF * 10));
+                        this.mota.render.drawIdToProp(this.prop.holyWater.ID, 1);
+                    }
+                    break;
+                case "B": //向上飞行器
+                    if (this.prop.flying.up.ID === limitProp.flying.up.ID) {
+                        this.mota.maps.next(0, this.prop.flying.up.ID);
+                        this.mota.render.drawIdToProp(this.prop.flying.up.ID, 1);
+                    }
+                    break;
+                case "N": //向下飞行器
+                    if (this.prop.flying.down.ID === limitProp.flying.down.ID) {
+                        this.mota.maps.previous(this.prop.flying.down.ID);
+                        this.mota.render.drawIdToProp(this.prop.flying.down.ID, 1);
+                    }
+                    break;
+                case "M": //中心飞行器
+                    if (this.prop.flying.center.ID === limitProp.flying.center.ID) {
+                        var floorID = Resource.adorn.floor.base.ID;
+                        var maps = this.mota.maps.maps[this.mota.maps.tier];
+                        var x = 10 - this.fromX;
+                        var y = 10 - this.fromY;
+                        if (maps[y][x] !== floorID) {
+                            return;
+                        }
+                        this.mota.maps.setFloor(this.fromX, this.fromY);
+                        this.mota.render.drawActor(x, y, 0, Resource.figure.actor.direction.bottom.posY);
+                        this.fromX = x;
+                        this.fromY = y;
+                        this.prop.flying.center.num--;
+                        if (this.prop.flying.center.num === 0) {
+                            this.mota.render.drawIdToProp(this.prop.flying.center.ID, 1);
+                        }
+                    }
+                    break;
+                case 'K': //魔法钥匙
+                    if (this.prop.magicKey.ID === Resource.prop.key.magic.ID) {
+                        this.mota.door.openTierYellowDoor();
+                        this.mota.render.drawIdToProp(this.prop.magicKey.ID, 1);
+                    }
+                    break;
+                case 'F': //冰冻魔法
+                    if (this.prop.snowCrystal.ID === limitProp.snowCrystal.ID) {
                         this.mota.maps.clearMagma();
                     }
                     break;
@@ -1254,6 +1558,7 @@ var Mota = (function () {
         this.monsters = [];
         this.actor = "";
         this.bossGuardNum = 0; //攻打boss的守卫数量
+        this.bonusAttackCount = 3;//额外攻击次数, 只是增加攻击效果, 不会有任何伤害
     }
 
     Monster.prototype = {
@@ -1413,6 +1718,42 @@ var Mota = (function () {
             }
             this.keys = this.keys++ == 3 ? 0 : this.keys;
         },
+        /**
+         * @param x
+         * @param y
+         * @param mType 1 --- 初级巫师/高级巫师  2 --- 魔法警卫
+         */
+        magicAttack: function (x, y, mType) {
+            var weapon = this.mota.actor.weapon;
+            var shieldID = Resource.weapon.category[4].shield.ID;
+            if (weapon.shield !== undefined && weapon.shield.ID === shieldID) {
+                return; //神圣盾魔法攻击无效
+            }
+            if (mType === 1) {
+                if (this.mota.maps.tier > 40) {
+                    var maps = this.mota.maps.maps[this.mota.maps.tier];
+                    var magicians = Resource.figure.monster.Magician.category;
+                    for (var index = 0, len = magicians.length; index < len; index++) {
+                        var magician = magicians[index];
+                        switch (true) {
+                            case maps[y][x + 1] === magician.ID:
+                            case maps[y][x - 1] === magician.ID:
+                            case y + 1 < 10 && maps[y + 1][x] === magician.ID:
+                            case y - 1 > 0 && maps[y - 1][x] === magician.ID:
+                                var onceBlood = magician.ATK - this.mota.actor.DEF; //攻击一次扣血
+                                onceBlood = onceBlood <= 0 ? 0 : onceBlood;
+                                this.mota.actor.minusHP(onceBlood);
+                                break;
+                            default :
+                                break;
+                        }
+                    }
+                }
+            } else if (mType === 2) {
+                var HP = Math.ceil(this.mota.actor.HP / 2);
+                this.mota.actor.minusHP(HP);
+            }
+        },
         attack: function (x, y) {
             var len = this.collect.length;
             var maps = this.mota.maps.maps[this.mota.maps.tier];
@@ -1431,7 +1772,11 @@ var Mota = (function () {
                         default :
                             var ATK = monster[2].ATK;
                             var attackCount = this.actor.getAttackCount(monster[2]); //攻击次数
-                            var onceBlood = ATK - this.actor.DEF; //攻击一次扣血
+                            var onceBlood = 0;
+                            if (monsterId === R.Devil.category[0].ID && this.mota.actor.isSealDevil === 1) {
+                                ATK /= 10;
+                            }
+                            onceBlood = ATK - this.actor.DEF; //攻击一次扣血
                             onceBlood = onceBlood <= 0 ? 0 : onceBlood;
                             var lossBlood = onceBlood * attackCount; //减去的血量
                             if (attackCount >= 0 && lossBlood < this.actor.HP && onceBlood < this.actor.HP) {
@@ -1439,7 +1784,7 @@ var Mota = (function () {
                                 this.actor.fromX = x;
                                 this.actor.fromY = y;
                                 this.collect.splice(index, 1);
-                                this.aggressor.attackCount = attackCount;
+                                this.aggressor.attackCount = attackCount + this.bonusAttackCount;
                                 this.aggressor.onceBlood = onceBlood;
                                 this.aggressor.monster = monster[2];
                                 return;
@@ -1453,7 +1798,9 @@ var Mota = (function () {
         },
         attackPayer: function () {
             if (this.aggressor.attackCount !== 0) {
-                this.actor.minusHP(this.aggressor.onceBlood);
+                if (this.aggressor.attackCount > this.bonusAttackCount) {
+                    this.actor.minusHP(this.aggressor.onceBlood);
+                }
                 if (this.aggressor.attackCount % 2 == 0) {
                     this.mota.render.drawFloor(this.actor.fromX, this.actor.fromY);
                     this.mota.render.drawActor(this.actor.fromX, this.actor.fromY, 0, Resource.figure.actor.direction.bottom.posY);
@@ -1467,19 +1814,28 @@ var Mota = (function () {
                 var x = this.actor.fromX;
                 var y = this.actor.fromY;
                 var isBoss = false;
+                this.mota.maps.crackSceneRule(x, y, monsterId);
                 switch (monsterId) {
+                    case Resource.figure.monster.MagicGuard.category[0].ID:
                     case Resource.figure.monster.Ghost.category[3].ID:
                     case Resource.figure.monster.Warrior.category[0].ID:
                     case Resource.figure.monster.Knight.category[1].ID:
                     case Resource.figure.monster.SwordMan.category[0].ID:
-                    case Resource.figure.monster.MagicGuard.category[0].ID:
                         this.mota.door.openFlower(monsterId, x, y);
                     case Resource.figure.monster.Ghost.category[0].ID:
                     case Resource.figure.monster.Ghost.category[1].ID:
                         if (this.bossGuardNum > 1) {
                             this.bossGuardNum--;
+                            maps[y][x] = Resource.adorn.floor.base.ID;
                             if (this.mota.maps.tier === 10 && this.bossGuardNum === 1) {
                                 this.mota.maps.setFloor(5, 2);
+                            }
+                        }
+                        if (this.mota.maps.tier === 49 && this.bossGuardNum === 5) {
+                            if (monsterId === maps[1][4] && monsterId === maps[1][6] && monsterId === maps[3][4] && monsterId === maps[3][6]) {
+                                var msg = Resource.figure.monster.Devil.category[0].message;
+                                this.mota.actor.isSealDevil = 1;
+                                this.mota.msgDlg.show(msg, 0);
                             }
                         }
                         break;
@@ -1588,20 +1944,29 @@ var Mota = (function () {
             //this.ctx.textAlign = 'center';
             this.ctx.fillText(text, x * s, y * s - (s - 16) / 2, maxWidth + 0.1);
         },
-        drawLongText: function (text, type) {
+        drawHotKeyText: function (x, y, text) {
+            var s = this.blockSize;
+            this.ctx.font = "bold 18px Arial";
+            this.ctx.fillStyle = "blue";
+            //this.ctx.textAlign = 'center';
+            this.ctx.fillText(text, x * s, y * s - (s - 16) / 2, s + 0.1);
+        },
+        drawLongText: function (text, type, fontsize, row) {
             var s = this.blockSize;
             this.clear(0, 0, this.width, this.height);
             text = "    " + text;
+            row = row || 1;
+            fontsize = fontsize || 13;
             if (text.length !== undefined) {
-                this.ctx.font = "13px 雅黑";
+                this.ctx.font = fontsize + "px 雅黑";
                 this.ctx.fillStyle = 'white';
                 var mark = 0;
-                var row = 1;
                 var lineTextLen = 0;
+                var space = 0.8 / 13 * fontsize;
                 for (var index = 0; index < text.length; index++) {
                     if (lineTextLen > this.width) {
                         this.ctx.fillText(text.substr(mark, index - mark), 0, row * s, this.width + 0.1);
-                        row += 0.8;
+                        row += space;
                         mark = index;
                         lineTextLen = this.ctx.measureText(text.substr(index, 1)).width;
                     } else {
@@ -1614,11 +1979,13 @@ var Mota = (function () {
                 if (lineTextLen !== 0) {
                     this.ctx.fillText(text.substr(mark, text.length), 0, row * s, this.width + 0.1);
                 }
-                this.ctx.font = "13px 雅黑";
+                this.ctx.font = fontsize + "px 雅黑";
                 if (type === 1) {
                     this.ctx.fillText("按<Y>键确定,按回车键继续游戏", 1.5 * s, 4.8 * s, this.width);
                 } else {
-                    this.ctx.fillText("按回车键继续游戏", 5 * s, 4.8 * s, this.width);
+                    if (type !== 3) {
+                        this.ctx.fillText("按回车键继续游戏", 5 * s, 4.8 * s, this.width);
+                    }
                 }
             }
         }
@@ -1647,7 +2014,13 @@ var Mota = (function () {
         },
         drawManualTextBorder: function (monster, posY) {
             var ATK = monster.ATK;
+            var HP = monster.HP;
+            var DEF = monster.DEF;
+            var gold = monster.gold;
             var attackCount = this.mota.actor.getAttackCount(monster); //攻击次数
+            if (monster.ID === Resource.figure.monster.Devil.category[0].ID && this.mota.actor.isSealDevil === 1) {
+                ATK /= 10, HP /= 10, DEF /= 10, gold /= 10;
+            }
             var onceBlood = ATK - this.mota.actor.DEF; //攻击一次扣血
             onceBlood = onceBlood <= 0 ? 0 : onceBlood;
             var lossBlood = onceBlood * attackCount; //减去的血量
@@ -1658,15 +2031,15 @@ var Mota = (function () {
                     title = "你将不会受到任何伤害";
                     fontColor = "green";
                 } else {
-                    title = "你将受损" + lossBlood + "生命值，收获" + monster.gold + "金币";
+                    title = "你将受损" + lossBlood + "生命值，收获" + gold + "金币";
                     fontColor = "#FFAA33";
                 }
             } else {
                 title = "你无法攻击";
                 fontColor = "red";
             }
-            var double = this.mota.actor.prop.luckyCoins.ID !== undefined?2:1;
-            var intro = "【" + monster.name + "】生命：" + monster.HP + "，攻击：" + monster.ATK + "，防御：" + monster.DEF + "，金币：" + (monster.gold*double);
+            var double = this.mota.actor.prop.luckyCoins.ID !== undefined ? 2 : 1;
+            var intro = "【" + monster.name + "】生命：" + HP + "，攻击：" + ATK + "，防御：" + DEF + "，金币：" + (gold * double);
             this.manual.drawText(1.8, posY + 0.5, title, 8, 14, fontColor);
             this.manual.drawText(1.8, posY + 1.2, intro, 8.5, 14);
         },
@@ -1765,60 +2138,120 @@ var Mota = (function () {
                 }
             }
         },
-        drawIdToProp: function (id) {
+        /**
+         * @param id
+         * @param status 1---清除
+         */
+        drawIdToProp: function (id, status) {
             var always = Resource.prop.tool_always;
             var limit = Resource.prop.tool_limit;
             switch (id) {
                 case always.manual.ID:
                     this.mota.actor.prop.manual = always.manual;
                     this.prop.drawBlockImage(this.images.toolAlways, always.manual.posX, always.manual.posY, 0.2, 1);
+                    this.prop.drawHotKeyText(0.5, 2, "H");
                     break;
                 case always.notepad.ID:
                     this.mota.actor.prop.notepad = always.notepad;
                     this.prop.drawBlockImage(this.images.toolAlways, always.notepad.posX, always.notepad.posY, 1.3, 1);
+                    this.prop.drawHotKeyText(1.6, 2, "G");
                     break;
                 case always.flyingWand.ID:
                     this.mota.actor.prop.flyingWand = always.flyingWand;
                     this.prop.drawBlockImage(this.images.toolAlways, always.flyingWand.posX, always.flyingWand.posY, 2.4, 1);
+                    this.prop.drawHotKeyText(2.4, 2, "Page");
                     break;
                 case limit.snowCrystal.ID:
                     this.mota.actor.prop.snowCrystal = limit.snowCrystal;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.snowCrystal.posX, limit.snowCrystal.posY, 3.5, 1);
+                    this.prop.drawHotKeyText(3.9, 2, "F");
                     break;
                 case limit.pickax.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.pickax = {};
+                        this.prop.clear(0.2, 3);
+                        return;
+                    }
                     this.mota.actor.prop.pickax = limit.pickax;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.pickax.posX, limit.pickax.posY, 0.2, 3);
-                    break;
-                case limit.superMaigcMattok.ID:
-                    this.mota.actor.prop.superMaigcMattok = limit.superMaigcMattok;
-                    this.prop.drawBlockImage(this.images.toolLimit, limit.superMaigcMattok.posX, limit.superMaigcMattok.posY, 2.4, 3);
-                    break;
-                case limit.bomb.ID:
-                    this.mota.actor.prop.bomb = limit.bomb;
-                    this.prop.drawBlockImage(this.images.toolLimit, limit.bomb.posX, limit.bomb.posY, 3.5, 3);
+                    this.prop.drawHotKeyText(0.5, 4, "Z");
                     break;
                 case limit.holyWater.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.holyWater = {};
+                        this.prop.clear(1.3, 3);
+                        return;
+                    }
                     this.mota.actor.prop.holyWater = limit.holyWater;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.holyWater.posX, limit.holyWater.posY, 1.3, 3);
+                    this.prop.drawHotKeyText(1.6, 4, "V");
+                    break;
+                case limit.superMaigcMattok.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.superMaigcMattok = {};
+                        this.prop.clear(2.4, 3);
+                        return;
+                    }
+                    this.mota.actor.prop.superMaigcMattok = limit.superMaigcMattok;
+                    this.prop.drawBlockImage(this.images.toolLimit, limit.superMaigcMattok.posX, limit.superMaigcMattok.posY, 2.4, 3);
+                    this.prop.drawHotKeyText(2.8, 4, "X");
+                    break;
+                case limit.bomb.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.bomb = {};
+                        this.prop.clear(3.5, 3);
+                        return;
+                    }
+                    this.mota.actor.prop.bomb = limit.bomb;
+                    this.prop.drawBlockImage(this.images.toolLimit, limit.bomb.posX, limit.bomb.posY, 3.5, 3);
+                    this.prop.drawHotKeyText(3.8, 4, "C");
                     break;
                 case Resource.prop.key.magic.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.magicKey = {};
+                        this.prop.clear(0.2, 4.2);
+                        return;
+                    }
                     this.mota.actor.prop.magicKey = Resource.prop.key.magic;
                     this.prop.drawBlockImage(this.images.key, Resource.prop.key.magic.posX, Resource.prop.key.magic.posY, 0.2, 4.2);
+                    this.prop.drawHotKeyText(0.5, 5.2, "K");
                     break;
                 case limit.flying.center.ID:
-                    this.mota.actor.prop.holyWater = limit.holyWater;
+                    if (status === 1) {
+                        this.mota.actor.prop.flying.center = {};
+                        this.prop.clear(1.3, 4.2);
+                        return;
+                    }
+                    this.mota.actor.prop.flying.center = limit.flying.center;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.flying.center.posX, limit.flying.center.posY, 1.3, 4.2);
+                    this.prop.drawHotKeyText(1.6, 5.2, "M");
                     break;
                 case limit.flying.up.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.flying.up = {};
+                        this.prop.clear(2.4, 4.2);
+                        return;
+                    }
+                    this.mota.actor.prop.flying.up = limit.flying.up;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.flying.up.posX, limit.flying.up.posY, 2.4, 4.2);
+                    this.prop.drawHotKeyText(2.8, 5.2, "B");
                     break;
                 case limit.flying.down.ID:
+                    if (status === 1) {
+                        this.mota.actor.prop.flying.down = {};
+                        this.prop.clear(3.5, 4.2);
+                        return;
+                    }
+                    this.mota.actor.prop.flying.down = limit.flying.down;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.flying.down.posX, limit.flying.down.posY, 3.5, 4.2);
+                    this.prop.drawHotKeyText(3.8, 5.2, "N");
                     break;
                 case always.luckyCoins.ID:
+                    this.mota.actor.prop.luckyCoins = always.luckyCoins;
                     this.prop.drawBlockImage(this.images.toolAlways, always.luckyCoins.posX, always.luckyCoins.posY, 2.6, 6);
                     break;
                 case limit.dragonSlayer.ID:
+                    this.mota.actor.prop.dragonSlayer = limit.dragonSlayer;
                     this.prop.drawBlockImage(this.images.toolLimit, limit.dragonSlayer.posX, limit.dragonSlayer.posY, 1.5, 6);
                     break;
                 case always.cross.ID:
@@ -1914,6 +2347,7 @@ var Mota = (function () {
                 case Resource.adorn.floor.base.ID:
                     this.drawFloor(x, y);
                     break;
+                case Resource.adorn.floor.ladder.ID:
                 case Resource.adorn.floor.wall.ID:
                     this.drawFloorWall(x, y);
                     break;
@@ -2283,21 +2717,33 @@ var Mota = (function () {
         var self = this;
         var keys = {
             13: 'enter', //弹窗关闭
-            33: 'floor-up',//飞行魔杖 上
-            34: 'floor-down', //飞行魔杖 下
+            33: 'flying-up',//飞行魔杖 上
+            34: 'flying-down', //飞行魔杖 下
             38: 'top', //人物移动上
             39: 'right', //人物移动右
             40: 'down', //人物移动下
             37: 'left', //人物移动左
             70: 'F', //冰冻魔法
-            71: 'G',
+            71: 'G', //记事本
             72: 'H',//怪物手册
+            90: 'Z',//镐
+            88: 'X',//地震卷轴
+            67: 'C',//炸弹
+            86: 'V',//圣水
+            75: "K", //魔法钥匙
+            66: 'B',//向上飞行器
+            78: 'N', //向下飞行器
+            77: 'M', //中心飞行器
             89: 'Y',//弹窗关闭并购买
             49: '1',//商店购买血液
             97: '1',//商店购买血液
             50: '2',//商店购买攻击力
             98: '2',//商店购买攻击力
             51: '3',//商店购买防御力
+            52: '4',//记事本上一页
+            100: '4',//记事本上一页
+            53: '5',//记事本下一页
+            101: '5',//记事本下一页
             99: '3',//商店购买防御力
             83: 'S',//游戏存档
             76: 'L',//游戏独挡
@@ -2314,21 +2760,36 @@ var Mota = (function () {
         this.keyPress = function (key) {
             if (key === 'enter') {
                 self.helper.msgDlg().close();
+                self.actor.notepad().close();
                 self.monster.manual().close();
                 self.callback.recordBox.close();
             } else if (key === 'Y') {
                 self.helper.msgDlg().close(1);
             } else if (key === '1' || key === '2' || key === '3') {
                 self.store.msgDlg().minusGold(key);
+            } else if (key === '4') {
+                if (self.actor.isOpenNotepad === 1 && self.actor.npadPage > 1) {
+                    self.actor.npadPage--;
+                    self.actor.notepad().readTier();
+                }
+            } else if (key === '5') {
+                if (self.actor.isOpenNotepad === 1 && self.actor.npadPage < 50) {
+                    self.actor.npadPage++;
+                    self.actor.notepad().readTier();
+                }
             }
             if (self.actor.pause === 0) {
                 self.actor.keyPress(key);
                 switch (key) {
                     case 'S':
-                        self.callback.recordBox.open("游戏进度保存", 1);
+                        if (self.actor.pause === 0) {
+                            self.callback.recordBox.open("游戏进度保存", 1);
+                        }
                         break;
                     case 'L':
-                        self.callback.recordBox.open("游戏进度读取", 2);
+                        if (self.actor.pause === 0) {
+                            self.callback.recordBox.open("游戏进度读取", 2);
+                        }
                         break;
                     case 'R':
                         self.newGame();
@@ -2340,5 +2801,11 @@ var Mota = (function () {
         };
     }
 
-    return new Mota();
+    var _mota = new Mota();
+    return {
+        callback: _mota.callback,
+        init: function (callback) {
+            _mota.init(callback);
+        }
+    };
 })();

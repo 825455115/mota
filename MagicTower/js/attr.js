@@ -16,9 +16,9 @@ const Resource = {
             skin_0_src: "./img/figure/Actor01-Braver01.png",
             skin_1_src: "./img/figure/Actor01-Braver05.png",
             name: "玩家",
-            HP: 10000,
-            ATK: 300,
-            DEF: 200,
+            HP: 1000,
+            ATK: 10,
+            DEF: 10,
             gold: 0,
             direction: {left: {posY: 1}, right: {posY: 2}, top: {posY: 3}, bottom: {posY: 0}}
         },
@@ -27,6 +27,10 @@ const Resource = {
             src: "./img/figure/NPC01-GongZhu.png",
             name: "公主",
             pos: 0,
+            message: [
+                "在救我之前，你需要先杀死大法师！！！",
+                "战胜大魔王，才可以救我出去的，我已经帮你打开通往50层暗道了！！！"
+            ],
             direction: {left: {posY: 1}, right: {posY: 2}, top: {posY: 3}, bottom: {posY: 0}}
         },
         helper: {
@@ -127,6 +131,7 @@ const Resource = {
             },
             MagicGuard: {
                 src: "./img/figure/Monster08-01.png",
+                range: {ID: 117, name: "魔法域"},
                 category: [
                     {ID: 78, name: "魔法警卫", HP: 230, ATK: 450, DEF: 100, gold: 100, pos: 0}
                 ]
@@ -140,8 +145,17 @@ const Resource = {
             Devil: {
                 src: "./img/figure/Monster08-02.png",
                 category: [
-                    {ID: 80, name: "假魔王", HP: 8000, ATK: 5000, DEF: 1000, gold: 5000, pos: 0},
-                    {ID: 81, name: "真魔王", HP: 5000, ATK: 1580, DEF: 190, gold: 500, pos: 1, message: "恭喜通关"}
+                    {
+                        ID: 80,
+                        name: "假魔王",
+                        HP: 8000,
+                        ATK: 5000,
+                        DEF: 1000,
+                        gold: 5000,
+                        pos: 0,
+                        message: "啊！我怎么被封印了，只剩下一成功力了！！！"
+                    },
+                    {ID: 81, name: "真魔王", HP: 5000, ATK: 1580, DEF: 190, gold: 500, pos: 1, message: "恭喜通关！！！"}
                 ]
             },
             BOSS: {
@@ -161,6 +175,7 @@ const Resource = {
             wall: {ID: 122, name: "假墙", pos: 3},
             empty: {ID: 123, name: "假地板", pos: 0},
             trap: {ID: 124, name: "机关", pos: 0},
+            ladder: {ID: 118, name: "天梯"},
             attack: {ID: 119, name: "攻击BOSS", pos: 0}
         },
         wall: {
@@ -232,7 +247,7 @@ const Resource = {
             flying: {
                 up: {ID: 46, name: "向上飞行器", posX: 2, posY: 1},
                 down: {ID: 47, name: "向下飞行器", posX: 1, posY: 1},
-                center: {ID: 48, name: "中心飞行器", posX: 0, posY: 1}
+                center: {ID: 48, name: "中心飞行器", posX: 0, posY: 1, num: 3}
             },
             holyWater: {ID: 49, name: "圣水", posX: 3, posY: 2}
         },
@@ -478,12 +493,6 @@ const Resource = {
         },
         tier48: {
             seer: {message: "象骰子上5的形状是一种封印魔法，你最好记住它在你与49楼假魔王战斗时有用。", type: 0}
-        },
-        tier49: {
-            devil: {message: "啊！我怎么被封印了，只剩下一成功力了！！！", type: 0}
-        },
-        tier50: {
-            devil: {message: "恭喜你通关所有关卡，是否继续重新开始？", type: 1}
         }
     }
 };
