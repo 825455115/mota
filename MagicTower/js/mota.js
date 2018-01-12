@@ -85,13 +85,16 @@ var Mota = (function () {
         newGame: function () {
             var self = this;
             this.records = {record1: {}, record2: {}, record3: {}};
-            this.helper.init(this);
-            this.monster.init(this);
+            this.render.init();
             this.maps.init(this);
+            this.monster.init(this);
+            this.helper.init(this);
             this.store.init(this);
             this.door.init(this);
             this.actor.init(this);
             this.msgDlg.init(this);
+            this.maps.refresh(this.maps.actorStairsTierPos[this.maps.tier][1]);
+            this.monster.start();
             if (interval) {
                 window.clearInterval(interval);
             }
@@ -231,8 +234,6 @@ var Mota = (function () {
             ];
             this.maps[this.tier] = this.mota.clone(GLOBAL_MAPS["tier" + this.tier]);
             this.mota.render.drawBoard(this.maps[this.tier]);
-            var origin = this.actorStairsTierPos[this.tier][1];
-            this.refresh(origin)
         },
         floorWall: function () {
             var self = this;
@@ -524,7 +525,7 @@ var Mota = (function () {
                 var origin = this.actorStairsTierPos[this.tier][1];
                 if (isFlying !== 1) {
                     if (this.maps[this.tier] === undefined) {
-                        this.maps[this.tier] = GLOBAL_MAPS["tier" + this.tier];
+                        this.maps[this.tier] = this.mota.clone(GLOBAL_MAPS["tier" + this.tier]);
                     }
                 } else {
                     if (this.maps[this.tier] === undefined) {
@@ -1563,7 +1564,6 @@ var Mota = (function () {
 
     Monster.prototype = {
         init: function (mota) {
-            var self = this;
             this.mota = mota;
             this.collect = []; //怪兽盛放的容器
             this.keys = 0;
@@ -1572,13 +1572,16 @@ var Mota = (function () {
             this.monsters = [];
             this.images = this.mota.render.images;
             this.actor = this.mota.actor;
+            this.zeroAggressor();
+        },
+        start: function () {
+            var self = this;
             if (this.attackInterval) {
                 window.clearInterval(this.attackInterval);
             }
             this.attackInterval = window.setInterval(function () {
                 self.attackPayer();
             }, this.speed);
-            this.zeroAggressor();
         },
         zeroAggressor: function () {
             this.aggressor = {
@@ -1916,6 +1919,9 @@ var Mota = (function () {
             this.board.width = this.width;
             this.board.height = this.height;
         },
+        clean: function () {
+            this.ctx.clearRect(0, 0, this.width, this.height);
+        },
         clear: function (x, y, w, h) {
             var s = this.blockSize;
             w = w || s;
@@ -1992,6 +1998,15 @@ var Mota = (function () {
     };
 
     Render.prototype = {
+        init: function () {
+            this.board.clean();
+            this.manual.clean();
+            this.actor.clean();
+            this.key.clean();
+            this.weapon.clean();
+            this.prop.clean();
+            this.message.clean();
+        },
         drawActorBorder: function () {
             this.drawActorText().tier();
             this.drawActorText().HP();
@@ -2753,7 +2768,6 @@ var Mota = (function () {
             document.addEventListener('keydown', this.keyPressEvent, true);
         };
         this.keyPressEvent = function (event) {
-            console.log(event.keyCode);
             if (keys[event.keyCode])
                 self.keyPress(keys[event.keyCode]);
         };
